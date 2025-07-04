@@ -1,10 +1,13 @@
 package graphql
 
 import (
-    "context"
-    "errors"
-    "pharmacy/graphql/internal/db"
-    "pharmacy/graphql/internal/rabbitmq"
+	"context"
+	"errors"
+	"pharmacy/graphql/internal/db"
+	"pharmacy/graphql/internal/graphql/generated"
+	"pharmacy/graphql/internal/graphql/models"
+	"pharmacy/graphql/internal/rabbitmq"
+	"strconv"
 )
 
 // THIS IS GENERATED CODE - DO NOT MODIFY
@@ -19,19 +22,19 @@ func NewResolver(db *db.Database, publisher *rabbitmq.Publisher) *Resolver {
     return &Resolver{db, publisher}
 }
 
-func (r *Resolver) Mutation() MutationResolver {
+func (r *Resolver) Mutation() generated.MutationResolver {
     return &mutationResolver{r}
 }
 
-func (r *Resolver) Query() QueryResolver {
+func (r *Resolver) Query() generated.QueryResolver {
     return &queryResolver{r}
 }
 
 type mutationResolver struct{ *Resolver }
 
-func (r *mutationResolver) CreateTransaction(ctx context.Context, input TransactionInput) (*Transaction, error) {
+func (r *mutationResolver) CreateTransaction(ctx context.Context, input models.TransactionInput) (*models.Transaction, error) {
     // Validation
-    if input.TransactionId == "" || input.MedicineName == "" {
+    if input.TransactionID == "" || input.MedicineName == "" {
         return nil, errors.New("transactionId and medicineName cannot be empty")
     }
     if input.Quantity <= 0 {
@@ -42,7 +45,7 @@ func (r *mutationResolver) CreateTransaction(ctx context.Context, input Transact
     }
 
     tx := db.Transaction{
-        TransactionID: input.TransactionId,
+        TransactionID: input.TransactionID,
         MedicineName:  input.MedicineName,
         Quantity:      input.Quantity,
         Price:         input.Price,
@@ -55,7 +58,7 @@ func (r *mutationResolver) CreateTransaction(ctx context.Context, input Transact
 
     // Publish to RabbitMQ
     if err := r.publisher.Publish(ctx, rabbitmq.Transaction{
-        TransactionID: input.TransactionId,
+        TransactionID: input.TransactionID,
         MedicineName:  input.MedicineName,
         Quantity:      input.Quantity,
         Price:         input.Price,
@@ -63,8 +66,8 @@ func (r *mutationResolver) CreateTransaction(ctx context.Context, input Transact
         return nil, err
     }
 
-    return &Transaction{
-        TransactionId: tx.TransactionID,
+    return &models.Transaction{
+        TransactionID: tx.TransactionID,
         MedicineName:  tx.MedicineName,
         Quantity:      tx.Quantity,
         Price:         tx.Price,
@@ -73,7 +76,23 @@ func (r *mutationResolver) CreateTransaction(ctx context.Context, input Transact
 
 type queryResolver struct{ *Resolver }
 
-func (r *queryResolver) Transactions(ctx context.Context) ([]*Transaction, error) {
-    // Implement if needed
-    return nil, nil
+func (r *queryResolver) Transactions(ctx context.Context) ([]*models.Transaction, error) {
+    dbTransactions, err := r.db.GetAllTransactions()
+    if err != nil {
+        return nil, err
+    }
+
+    var transactions []*models.Transaction
+    for _, tx := range dbTransactions {
+        transactions = append(transactions, &models.Transaction{
+            ID:            strconv.Itoa(tx.ID),
+            TransactionID: tx.TransactionID,
+            MedicineName:  tx.MedicineName,
+            Quantity:      tx.Quantity,
+            Price:         tx.Price,
+            CreatedAt:     tx.CreatedAt,
+        })
+    }
+
+    return transactions, nil
 }

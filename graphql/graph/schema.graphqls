@@ -1,0 +1,23 @@
+type Transaction {
+  id: ID!
+  transactionId: String!
+  medicineName: String!
+  quantity: Int!
+  price: Float!
+  createdAt: String!
+}
+
+input TransactionInput {
+  transactionId: String!
+  medicineName: String!
+  quantity: Int!
+  price: Float!
+}
+
+type Query {
+  transactions: [Transaction!]!
+}
+
+type Mutation {
+  createTransaction(input: TransactionInput!): Transaction!
+}

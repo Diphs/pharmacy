@@ -1,19 +1,21 @@
 package main
 
 import (
-    "log"
-    "net/http"
-    "pharmacy/graphql/internal/config"
-    "pharmacy/graphql/internal/db"
-    "pharmacy/graphql/internal/rabbitmq"
-    "pharmacy/graphql/internal/server"
+	"log"
+	"net/http"
+	"pharmacy/graphql/graph"
+	"pharmacy/graphql/internal/config"
+	"pharmacy/graphql/internal/db"
+	"pharmacy/graphql/internal/rabbitmq"
+
+	"github.com/99designs/gqlgen/graphql/handler"
+	"github.com/99designs/gqlgen/graphql/playground"
 )
 
 type App struct {
     config        *config.Config
     db            *db.Database
     rabbitPublisher *rabbitmq.Publisher
-    server        *server.Server
 }
 
 func NewApp() (*App, error) {
@@ -33,13 +35,10 @@ func NewApp() (*App, error) {
         return nil, err
     }
 
-    srv := server.NewServer(database, publisher)
-
     return &App{
         config:         cfg,
         db:             database,
         rabbitPublisher: publisher,
-        server:         srv,
     }, nil
 }
 
@@ -47,8 +46,18 @@ func (app *App) Run() error {
     defer app.db.Close()
     defer app.rabbitPublisher.Close()
 
+    resolver := &graph.Resolver{
+        DB:        app.db,
+        Publisher: app.rabbitPublisher,
+    }
+
+    srv := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{Resolvers: resolver}))
+
+    http.Handle("/", playground.Handler("GraphQL playground", "/graphql"))
+    http.Handle("/graphql", srv)
+
     log.Printf("Server running at http://localhost:%s/graphql", app.config.Port)
-    return http.ListenAndServe(":"+app.config.Port, app.server.Handler())
+    return http.ListenAndServe(":"+app.config.Port, nil)
 }
 
 func main() {

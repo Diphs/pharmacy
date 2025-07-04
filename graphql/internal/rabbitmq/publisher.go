@@ -1,13 +1,14 @@
 package rabbitmq
 
 import (
-    "context"
-    "encoding/json"
-    "github.com/rabbitmq/amqp091-go"
+	"context"
+	"encoding/json"
+
+	"github.com/rabbitmq/amqp091-go"
 )
 
 type Transaction struct {
-    TransactionID string  `json:"treansaction_id"`
+    TransactionID string  `json:"transaction_id"`
     MedicineName  string  `json:"medicine_name"`
     Quantity      int     `json:"quantity"`
     Price         float64 `json:"price"`

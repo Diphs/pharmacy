@@ -1,8 +1,8 @@
 package db
 
 import (
-    "github.com/jmoiron/sqlx"
-    _ "github.com/go-sql-driver/mysql"
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/jmoiron/sqlx"
 )
 
 type Transaction struct {
@@ -33,6 +33,13 @@ func (d *Database) SaveTransaction(tx Transaction) error {
     `
     _, err := d.db.NamedExec(query, tx)
     return err
+}
+
+func (d *Database) GetAllTransactions() ([]Transaction, error) {
+    query := `SELECT id, transaction_id, medicine_name, quantity, price, created_at FROM transactions ORDER BY created_at DESC`
+    var transactions []Transaction
+    err := d.db.Select(&transactions, query)
+    return transactions, err
 }
 
 func (d *Database) Close() error {
