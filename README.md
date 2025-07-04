@@ -1,167 +1,114 @@
 # Pharmacy Transaction System - Setup Guide
 
-## Prerequisites
+## Project Overview
 
-- Go 1.21 or higher
-- MySQL 8.0 or higher
-- RabbitMQ Server
-- Git
+This project is a distributed pharmacy transaction system designed to handle medication sales, persist transaction data, and communicate with a third-party API for external processing. It uses a microservices architecture with the following components:
 
-## Quick Start
+- **GraphQL Service**: The main entry point for creating and retrieving transactions. It exposes a GraphQL API, saves data to a MySQL database, and publishes messages to a RabbitMQ queue.
+- **Consumer Service**: Listens for messages on the RabbitMQ queue and forwards them to a mock third-party API.
+- **Third-Party API**: A mock server that simulates an external service receiving transaction data.
 
-### 1. Database Setup
+## Tech Stack
 
-Create a MySQL database and table:
+- **Backend**: Go
+- **API**: GraphQL (gqlgen)
+- **Database**: MySQL
+- **Message Broker**: RabbitMQ
+- **Containerization**: Docker
 
-```sql
-CREATE DATABASE pharmacy_db;
-USE pharmacy_db;
+---
 
-CREATE TABLE transactions (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    transaction_id VARCHAR(255) NOT NULL,
-    medicine_name VARCHAR(255) NOT NULL,
-    quantity INT NOT NULL,
-    price DECIMAL(10,2) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
+## Getting Started
 
-### 2. RabbitMQ Setup
+These instructions will get you a copy of the project up and running on your local machine for development and testing purposes.
 
-Install and start RabbitMQ:
+### Prerequisites
 
-```bash
-# On Windows with Chocolatey
-choco install rabbitmq
+- **Docker** and **Docker Compose**: For running MySQL and RabbitMQ services.
+- **Go**: Version 1.21 or higher.
+- **Git**: For cloning the repository.
 
-# Or download from https://www.rabbitmq.com/download.html
-# Start RabbitMQ service
-rabbitmq-server
-```
-
-### 3. Environment Variables
-
-Set the following environment variables (or use defaults):
+### 1. Clone the Repository
 
 ```bash
-# GraphQL Service
-DATABASE_URL=root:password@tcp(localhost:3306)/pharmacy_db?parseTime=true
-RABBITMQ_URL=amqp://guest:guest@localhost:5672/
-QUEUE_NAME=transaction_queue
-PORT=8080
-
-# Consumer Service
-RABBITMQ_URL=amqp://guest:guest@localhost:5672/
-QUEUE_NAME=transaction_queue
-THIRD_PARTY_URL=http://localhost:8082/transactions
+git clone <repository-url>
+cd pharmacy
 ```
 
-### 4. Build and Run
+### 2. Set Up Environment Variables
 
-#### Build All Services
+Each service requires its own `.env` file for configuration. Example files are provided in the `graphql` and `consumer` directories. Copy them to create your local configuration:
 
-```bash
-# Build GraphQL service
-cd graphql
-go build -o build/graphql.exe .
+**For the GraphQL Service:**
 
-# Build Consumer service
-cd ../consumer
-go build -o build/consumer.exe .
-
-# Build Third-party API (for testing)
-cd ../thirdparty_api
-go build -o build/thirdparty.exe .
+```powershell
+copy .\graphql\.env.example .\graphql\.env
 ```
 
-#### Run Services
+**For the Consumer Service:**
 
-**Terminal 1 - Third-party API (Mock)**
-
-```bash
-cd thirdparty_api
-go run main.go
+```powershell
+copy .\consumer\.env.example .\consumer\.env
 ```
 
-**Terminal 2 - GraphQL API**
+### 3. Start Services with Docker
+
+We use Docker to run the necessary backend services (MySQL and RabbitMQ). A `docker-compose.yml` file is provided to simplify this process.
+
+From the project root, run:
 
 ```bash
-cd graphql
-go run main.go
+docker-compose up -d
 ```
 
-**Terminal 3 - Consumer Service**
+This command will start MySQL and RabbitMQ in the background. To view logs, you can run `docker-compose logs -f`.
 
-```bash
-cd consumer
-go run main.go
+### 4. Run the Application
+
+Use the provided batch script to start all Go services (GraphQL, Consumer, and Third-Party API) in separate terminal windows.
+
+```powershell
+.\start-services.bat
 ```
 
 ### 5. Test the System
 
-#### Create a Transaction
+After starting the services, the script will prompt you to press any key to run an end-to-end test. This test uses `test-graphql.ps1` to:
 
-```bash
-curl -X POST http://localhost:8080/graphql \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "mutation { createTransaction(input: { transactionId: \"123\", medicineName: \"Aspirin\", quantity: 2, price: 10.0 }) { id transactionId medicineName quantity price createdAt } }",
-    "variables": {
-      "input": {
-        "transactionId": "123",
-        "medicineName": "Aspirin",
-        "quantity": 2,
-        "price": 10.0
-      }
-    }
-  }'
-```
+1.  Create a new transaction via the GraphQL API.
+2.  Query the API to retrieve all transactions, including the new one.
 
-#### Get All Transactions
+If the tests run successfully, you will see the newly created transaction in the output.
 
-```bash
-curl -X POST http://localhost:8080/graphql \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "query { transactions { id transactionId medicineName quantity price createdAt } }"
-  }'
-```
+---
 
-## Architecture Flow
+## Manual Setup (Without Docker)
 
-1. **GraphQL API** receives transaction creation request
-2. **Validates** transaction data
-3. **Saves** transaction to MySQL database
-4. **Publishes** message to RabbitMQ queue
-5. **Consumer Service** receives message from queue
-6. **Forwards** transaction to third-party API
-7. **Third-party API** processes and logs transaction
+If you prefer to run MySQL and RabbitMQ natively, follow these steps:
 
-## Service Ports
+### 1. Install and Start MySQL
 
-- **GraphQL API**: http://localhost:8080
-- **Third-party API**: http://localhost:8082
-- **RabbitMQ Management**: http://localhost:15672 (guest/guest)
+- Install MySQL Server 8.0+.
+- Ensure the `mysql` command-line client is available in your system's PATH.
+- Create the database and table using the `schema.sql` file:
 
-## Development
+  ```shell
+  mysql -u root -p < schema.sql
+  ```
 
-### Adding New Fields
+### 2. Install and Start RabbitMQ
 
-1. Update `schema.graphql` in the GraphQL service
-2. Update database schema if needed
-3. Update models and resolvers
-4. Restart services
+- Install RabbitMQ using a package manager like Chocolatey (`choco install rabbitmq`) or download it from the official website.
+- Start the RabbitMQ server.
 
-### Monitoring
+### 3. Run the Application
 
-- Check RabbitMQ management UI for queue status
-- Monitor database for transaction records
-- Check third-party API logs for processed transactions
+Follow steps 2, 4, and 5 from the Docker-based setup.
+
+---
 
 ## Troubleshooting
 
-1. **Connection Issues**: Ensure MySQL and RabbitMQ are running
-2. **Port Conflicts**: Change ports in configuration
-3. **Database Errors**: Check database credentials and schema
-4. **Queue Issues**: Verify RabbitMQ is accessible and queue exists
+- **`Invoke-RestMethod : Unable to connect to the remote server`**: This error usually means the GraphQL service is not running or hasn't started yet. The `start-services.bat` script includes a delay to prevent this, but if it persists, check the GraphQL service terminal window for startup errors.
+- **`mysql: The term 'mysql' is not recognized`**: This occurs during manual setup if the MySQL client is not in your system's PATH. The recommended solution is to use the Docker setup. If you must use a local installation, you will need to add the MySQL `bin` directory to your system's PATH environment variable.
+- **Database connection errors**: Check that the MySQL container is running (`docker ps`) and that the credentials in `graphql/.env` match the `docker-compose.yml` file.
